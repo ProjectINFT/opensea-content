@@ -60,6 +60,7 @@ func serverHandle(w http.ResponseWriter, req *http.Request) {
 }
 
 func fetchContent(content string) ([]byte, error) {
+	log.Println("fetchContent content: ", content)
 	u, err := url.Parse(content)
 	if err != nil {
 		return nil, err
@@ -82,5 +83,6 @@ func fetchContent(content string) ([]byte, error) {
 	if err = writeToFile(path, b); err != nil {
 		log.Println("write file error, err = ", err)
 	}
+	log.Println("fetchContent finish")
 	return b, nil
 }
