@@ -13,7 +13,7 @@ import (
 
 var config *AppConfigure
 
-const curVersion = "0.1"
+const curVersion = "0.2"
 
 func main() {
 	configPath := ""
