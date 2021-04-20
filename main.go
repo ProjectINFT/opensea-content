@@ -13,7 +13,7 @@ import (
 
 var config *AppConfigure
 
-const curVersion = "0.2"
+const curVersion = "0.2.1"
 
 func main() {
 	configPath := ""
@@ -47,28 +47,26 @@ func server() {
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
-//http://myhpb.cn/proxy?content=base58()
+//http://myhpb.cn/proxy?content=base64(URL)
 func serverHandle(w http.ResponseWriter, req *http.Request) {
-	proxy := func(http.ResponseWriter, *http.Request) {
-		if req.Method != "GET" {
-			http.NotFound(w, req)
-			return
-		}
-		log.Println("handle request: ", req.URL.String())
-		content := req.URL.Query().Get("content")
-		if content == "" {
-			http.NotFound(w, req)
-			return
-		}
-		b, err := fetchContent(content)
-		if err != nil {
-			log.Println("fetchContent err = ", err)
-			http.Error(w, "fetch content error", 500)
-			return
-		}
-		w.Write(b)
+	if req.Method != "GET" {
+		http.NotFound(w, req)
+		return
 	}
-	go proxy(w, req)
+	log.Println("handle request: ", req.URL.String())
+	content := req.URL.Query().Get("content")
+	if content == "" {
+		http.NotFound(w, req)
+		return
+	}
+	b, err := fetchContent(content)
+	if err != nil {
+		log.Println("fetchContent err = ", err)
+		http.Error(w, "fetch content error", 500)
+		return
+	}
+	w.Header().Add("content-type", http.DetectContentType(b))
+	w.Write(b)
 }
 
 func fetchContent(content string) ([]byte, error) {
