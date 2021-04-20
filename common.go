@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 )
+
+const timeOutDur = 10
 
 func replaceHost(str string, host string) string {
 	u, err := url.Parse(str)
@@ -17,8 +21,10 @@ func replaceHost(str string, host string) string {
 }
 
 func httpGetHelper(str string) ([]byte, error) {
-	host := "https://lh3.googleusercontent.com"
-	req, err := http.NewRequest("GET", replaceHost(str, host), nil)
+	timeout := time.Duration(timeOutDur * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", str, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -34,18 +40,12 @@ func httpGetHelper(str string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	//fmt.Println(res)
-	//fmt.Println(string(body))
 	return body, nil
 }
 
-func exists(path string) bool {
-	_, err := os.Stat(path)
-	if err != nil {
-		if os.IsExist(err) {
-			return true
-		}
-		return false
+func exists(fileName string) bool {
+	if _, err := os.Stat(fileName); err != nil {
+		return os.IsExist(err)
 	}
 	return true
 }

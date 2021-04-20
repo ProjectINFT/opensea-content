@@ -1,17 +1,19 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 
 	"github.com/urfave/cli/v2"
 )
 
 var config *AppConfigure
+
+const curVersion = "0.1"
 
 func main() {
 	configPath := ""
@@ -30,6 +32,7 @@ func main() {
 			server()
 			return nil
 		},
+		Version: curVersion,
 	}
 	err := app.Run(os.Args)
 	if err != nil {
@@ -38,49 +41,61 @@ func main() {
 }
 
 func server() {
-	http.HandleFunc("/", serverHandle)
+	http.HandleFunc("/proxy", serverHandle)
 	addr := fmt.Sprintf("%s:%d", config.Bind, config.Port)
 	log.Println("http server start on ", addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
+//http://myhpb.cn/proxy?content=base58()
 func serverHandle(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "GET" {
-		http.NotFound(w, req)
-		return
+	proxy := func(http.ResponseWriter, *http.Request) {
+		if req.Method != "GET" {
+			http.NotFound(w, req)
+			return
+		}
+		log.Println("handle request: ", req.URL.String())
+		content := req.URL.Query().Get("content")
+		if content == "" {
+			http.NotFound(w, req)
+			return
+		}
+		b, err := fetchContent(content)
+		if err != nil {
+			log.Println("fetchContent err = ", err)
+			http.Error(w, "fetch content error", 500)
+			return
+		}
+		w.Write(b)
 	}
-	str := req.URL.String()
-	log.Println("handle request: ", str)
-	b, err := fetchContent(str)
-	if err != nil {
-		http.Error(w, "fetch content error", 500)
-		return
-	}
-	w.Write(b)
+	go proxy(w, req)
 }
 
 func fetchContent(content string) ([]byte, error) {
 	log.Println("fetchContent content: ", content)
-	u, err := url.Parse(content)
+	decoded, err := base64.StdEncoding.DecodeString(content)
 	if err != nil {
+		log.Println("DecodeString err = ", err)
 		return nil, err
 	}
-	path := config.SavePath + u.Path
-	if exists(path) { //fetch in local dir
-		log.Println("fetch from local, content: ", u.Path)
-		b, err := ioutil.ReadFile(path)
+	contentURL := string(decoded)
+	log.Println("content URL = ", contentURL)
+	contentLocalPath := config.SavePath + "/" + content
+	if exists(contentLocalPath) { //fetch in local dir
+		log.Println("fetch from local, content: ", content)
+		b, err := ioutil.ReadFile(contentLocalPath)
 		if err != nil {
 			return nil, err
 		}
 		return b, nil
 	}
-	log.Println("fetch from network, content: ", u.Path)
-	b, err := httpGetHelper(content)
+	log.Println("fetch from network, content: ", content)
+	b, err := httpGetHelper(contentURL)
 	if err != nil {
 		return nil, err
 	}
 	// save to local
-	if err = writeToFile(path, b); err != nil {
+	if err = writeToFile(contentLocalPath, b); err != nil {
 		log.Println("write file error, err = ", err)
 	}
 	log.Println("fetchContent finish")
